@@ -3,18 +3,18 @@ from datetime import datetime
 import io
 
 
-__DTFORMAT = "%m-%d-%Y %H:%M:%S"
-__DBFILE = "tasks.json"
-__TASK_STATUS = ['todo', 'in-progress', 'done']
-__TASK_PARS = ['description', 'status', 'updatedAt', 'createdAt']
+DTFORMAT = "%m-%d-%Y %H:%M:%S"
+DBFILE = "tasks.json"
+TASK_STATUS = ['todo', 'in-progress', 'done']
+TASK_PARS = ['description', 'status', 'updatedAt', 'createdAt']
 
 
 class JSONTask:
     def __init__(self, _input: dict[str, dict[str, str]] | io.TextIOWrapper | None = None):
-        self.fn = __DBFILE
+        self.fn = DBFILE
 
         if isinstance(_input, io.TextIOWrapper) or _input is None:
-            with (_input or open(__DBFILE)) as f:
+            with (_input or open(DBFILE)) as f:
                 self.fn = f.name
                 self.__tasks = json.load(f)
 
@@ -39,11 +39,12 @@ class JSONTask:
             for key, val in v.items():
 
                 # Key and value alteration check
-                if not(isinstance(key, str) and isinstance(val, str) and key in __TASK_STATUS):
+                if not(isinstance(key, str) and isinstance(val, str) and key in TASK_PARS) \
+                    or key == 'status' and val not in TASK_STATUS:
                     return False
 
                 if key == 'createdAt' or key == 'updatedAt':
-                    dt[key] = datetime.strptime(val, __DTFORMAT)
+                    dt[key] = datetime.strptime(val, DTFORMAT)
                 
             if dt['createdAt'] > dt['updatedAt']:
                 raise ValueError()
@@ -59,7 +60,7 @@ class TaskManager:
         self.__task_obj = task
         self.__tasks = self.__task_obj.getTasks()
         self.__changes = False
-        self.__dt_today = datetime.strftime(datetime.now(), __DTFORMAT)
+        self.__dt_today = datetime.strftime(datetime.now(), DTFORMAT)
 
         self.__id = 1
         while self.__tasks.get(str(self.__id), False):
