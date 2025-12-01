@@ -1,5 +1,8 @@
 import sys
-import taskmgr
+import json
+import os
+import os.path
+from datetime import datetime
 
 
 def printHelp():
@@ -35,6 +38,7 @@ GitHub: arley-techie
 """)
 
 def main():
+    writeTask = lambda curr_task, filename: json.dump(curr_task, open(filename, 'w'), indent=4, sort_keys=True)
     reason_code = lambda opt, code: [
         f'Adding a new task is complete! (ID: {opt})',
         f'Deleting a task is complete! (ID: {opt})',
@@ -50,21 +54,49 @@ def main():
 
     jsontask = 'tasks.json'
     args = args[1:]
+    dt_today = datetime.strftime(datetime.now(), "%m-%d-%Y %H:%M:%S")
+    status_list = ['todo', 'in-progress', 'done']
     commands = ['add', 'update', 'delete', 'list', 'mark-in-progress', 'mark-done', 'help']
-    tasks = taskmgr.JSONTask()
-    tmgr = taskmgr.TaskManager(tasks)
+    tasks = {}
+
+    try:
+        if os.path.exists(jsontask):
+            tasks = json.load(open(jsontask, 'r'))
+    except json.decoder.JSONDecodeError:
+        pass
     
     if args[0] in commands:
         if args[0] == 'add':
-            tmgr.addTask(args[1])
+            id = 0
+            while tasks.get(str(id), False):
+                id += 1
+
+            tasks[str(id)] = {
+                'description': args[1].strip(),
+                'status': status_list[0],
+                'createdAt': dt_today,
+                'updatedAt': dt_today
+            }
+
+            writeTask(tasks, jsontask)
             print(reason_code(id, 100))
 
         elif args[0] == 'delete':
-            tmgr.deleteTask(args[1])
-            print(reason_code(id, 101))
+            if tasks.pop(args[1], False):
+                writeTask(tasks, jsontask)
+                print(reason_code(id, 101))
+            else:
+                print(reason_code(id, 102))
+                return 1
 
         elif args[0] == 'update':
-            tmgr.updateTask(args[1], args[2])
+            try:
+                tasks[args[1]]['description'] = args[2].strip()
+                tasks[args[1]]['updatedAt'] = dt_today
+                writeTask(tasks, jsontask)
+            except KeyError:
+                print(reason_code(id, 102))
+                return 1
 
         elif args[0] == 'list':
             if len(args) == 1:
