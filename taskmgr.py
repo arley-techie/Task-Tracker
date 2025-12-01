@@ -22,8 +22,13 @@ class JSONTask:
 
         else:
             raise ValueError("The argument, should be \"io.TextIOWrapper\" or should be in a JSON format! (dict[str, [str]])")
+        
+        self.validate_alteration(self._tasks)
 
-        for k, v in self._tasks.items():
+
+    @staticmethod
+    def validate_alteration(tasks):
+        for k, v in tasks.items():
             # ID alteration check
             assert isinstance(k, str)
             assert k.isdecimal()
@@ -46,8 +51,6 @@ class JSONTask:
                 
             if dt['createdAt'] > dt['updatedAt']:
                 raise ValueError()
-
-
     def getTasks(self):
         return self._tasks
 
