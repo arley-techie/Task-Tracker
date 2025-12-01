@@ -16,20 +16,23 @@ class JSONTask:
         if isinstance(_input, io.TextIOWrapper) or _input is None:
             with (_input or open(DBFILE)) as f:
                 self.fn = f.name
-                self.__tasks = json.load(f)
+                try:
+                    self.__tasks = json.load(f)
+                except json.decoder.JSONDecodeError:
+                    self.__tasks = {}
 
         elif isinstance(_input, dict):
             self.__tasks = _input
 
         else:
-            raise ValueError("The argument, should be \"io.TextIOWrapper\" or should be in a JSON format! (dict[str, [str]])")
+            raise ValueError("The argument, should be \"io.TextIOWrapper\" or should be in a JSON format! \"dict[str, [str]]\"")
         
         if not(self.validate_alteration(self.__tasks)):
             raise ValueError(f'The file {self.fn}, has been altered!')
 
 
     @staticmethod
-    def validate_alteration(tasks):
+    def validate_alteration(tasks: dict[str, dict[str]]):
         for k, v in tasks.items():
             # ID alteration check
             if not(isinstance(k, str) and k.isdecimal() and isinstance(v, dict)):
@@ -47,7 +50,7 @@ class JSONTask:
                     dt[key] = datetime.strptime(val, DTFORMAT)
                 
             if dt['createdAt'] > dt['updatedAt']:
-                raise ValueError()
+                return False
         return True
 
 
@@ -62,14 +65,14 @@ class TaskManager:
         self.__changes = False
         self.__dt_today = datetime.strftime(datetime.now(), DTFORMAT)
 
-        self.__id = 1
-        while self.__tasks.get(str(self.__id), False):
-            self.__id += 1
-        self.__id = str(id)
+        self.id = 1
+        while self.__tasks.get(str(self.id), False):
+            self.id += 1
+        self.id = str(self.id)
 
 
-    def addTask(self, description):
-        self.__tasks[self.__id] = {
+    def addTask(self, description:str) -> None:
+        self.__tasks[self.id] = {
             'description': description,
             'status': 'todo',
             'createdAt': self.__dt_today,
@@ -77,35 +80,47 @@ class TaskManager:
         }
         self.__changes = True
 
-    def getTasks(self):
+
+    def getTasks(self) -> None:
         return self.__tasks
 
 
-    def deleteTask(self, id:int):
-        self.__changes = True
-        del self.__tasks[str(id)]
+    def deleteTask(self, id:int) -> bool:
+        if self.__tasks.get(str(id)):
+            del self.__tasks[str(id)]
+            self.__changes = True
+            return True
+        return False
 
 
-    def updateTask(self, id:int, description):
-        self.__tasks[str(id)]['description'] = description
-        self.__tasks[str(id)]['updateAt'] = self.__dt_today
-        self.__changes = True
+    def updateTask(self, id:int, description:str) -> bool:
+        if self.__tasks.get(str(id)):
+            self.__tasks[str(id)]['description'] = description
+            self.__tasks[str(id)]['updatedAt'] = self.__dt_today
+            self.__changes = True
+            return True
+        return False
 
 
-    def markTaskDone(self, id:int) -> None:
-        self.__tasks[str(id)]['status'] = 'done'
-        self.__changes = True
+    def markTaskDone(self, id:int) -> bool:
+        if self.__tasks.get(str(id)):
+            self.__tasks[str(id)]['status'] = 'done'
+            self.__changes = True
+            return True
+        return False
 
 
-    def markTaskInProgress(self, id:int) -> None:
-        self.__tasks[str(id)]['status'] = 'in-progress'
-        self.__changes = True
+    def markTaskInProgress(self, id:int) -> bool:
+        if self.__tasks.get(str(id)):
+            self.__tasks[str(id)]['status'] = 'in-progress'
+            self.__changes = True
+            return True
+        return False
 
 
-    def finalize(self):
-        if self.__tasks:
-            if self.__task_obj.validate_alteration(self.__tasks) and self.__changes:
-                with open(self.__task.fn, 'a') as f:
+    def finalize(self) -> bool:
+        if self.__tasks and self.__task_obj.validate_alteration(self.__tasks) and self.__changes:
+                with open(self.__task_obj.fn, 'w') as f:
                     json.dump(self.__tasks, f, indent=4, sort_keys=True)
                 return True
         return False

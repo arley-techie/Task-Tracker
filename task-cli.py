@@ -1,8 +1,5 @@
 import sys
-import json
-import os
-import os.path
-from datetime import datetime
+import taskmgr
 
 
 def printHelp():
@@ -38,104 +35,89 @@ GitHub: arley-techie
 """)
 
 def main():
-    writeTask = lambda curr_task, filename: json.dump(curr_task, open(filename, 'w'), indent=4, sort_keys=True)
-    reason_code = lambda opt, code: [
-        f'Adding a new task is complete! (ID: {opt})',
-        f'Deleting a task is complete! (ID: {opt})',
-        f'ID #{opt} is not in the task list!',
-        f'Command "{opt}" is not found!',
-    ][code-100]
-
     args = sys.argv
 
     if len(args) == 1 or 'help' in args:
         printHelp()
         return 0
-
-    jsontask = 'tasks.json'
-    args = args[1:]
-    dt_today = datetime.strftime(datetime.now(), "%m-%d-%Y %H:%M:%S")
-    status_list = ['todo', 'in-progress', 'done']
-    commands = ['add', 'update', 'delete', 'list', 'mark-in-progress', 'mark-done', 'help']
-    tasks = {}
-
-    try:
-        if os.path.exists(jsontask):
-            tasks = json.load(open(jsontask, 'r'))
-    except json.decoder.JSONDecodeError:
-        pass
     
+    reasons = lambda opt: [
+        f'Adding a new task is complete! (ID: {opt})',
+        f'Deleting a task is complete! (ID: {opt})',
+        f'Updating a task is complete! (ID: {opt})',
+        f'ID #{opt} is not in the task list!',
+        f'Marking as a "done" is complete! (ID: {opt})',
+        f'Marking as "in-progress" is complete! (ID: {opt})',
+        f'Command "{opt}" is not found!']
+    
+    reason_code = lambda opt, code: {k+100:v for k,v in enumerate(reasons(opt))}[code]
+    
+    args = args[1:]
+    commands = ['add', 'update', 'delete', 'list', 'mark-in-progress', 'mark-done', 'help']
+    rc = 0
+    tasks = taskmgr.JSONTask()
+    tmgr = taskmgr.TaskManager(tasks)
+    x = False
+
+
     if args[0] in commands:
         if args[0] == 'add':
-            id = 0
-            while tasks.get(str(id), False):
-                id += 1
+            tmgr.addTask(args[1])
+            rc = (reason_code(tmgr.id, 100), 0)
 
-            tasks[str(id)] = {
-                'description': args[1].strip(),
-                'status': status_list[0],
-                'createdAt': dt_today,
-                'updatedAt': dt_today
-            }
-
-            writeTask(tasks, jsontask)
-            print(reason_code(id, 100))
 
         elif args[0] == 'delete':
-            if tasks.pop(args[1], False):
-                writeTask(tasks, jsontask)
-                print(reason_code(id, 101))
-            else:
-                print(reason_code(id, 102))
-                return 1
+            x = int(not(tmgr.deleteTask(args[1])))
+            rc = (reason_code(args[1], 103 if x else 101), x)
+
 
         elif args[0] == 'update':
-            try:
-                tasks[args[1]]['description'] = args[2].strip()
-                tasks[args[1]]['updatedAt'] = dt_today
-                writeTask(tasks, jsontask)
-            except KeyError:
-                print(reason_code(id, 102))
-                return 1
+            x = not(tmgr.updateTask(args[1], args[2]))
+            rc = (reason_code(args[1], 103 if x else 102), x)
+
 
         elif args[0] == 'list':
-            if len(args) == 1:
-                for i in tasks:
-                    print(f'ID: {i}')
-                    print(f'  Description: "{(tasks[i]['description'])}"')
-                    print(f'  Status: "{tasks[i]['status']}"')
-                    print(f'  Created Since: "{tasks[i]['createdAt']}"')
-                    print(f'  Updated Since: "{tasks[i]['updatedAt']}"\n')
-            elif args[1] in status_list:
-                for i in tasks:
-                    if tasks[i]['status'] == args[1]:
-                        print(f'ID: "{i}"')
-                        print(f'  Description: "{tasks[i]['description']}"')
-                        print(f'  Status: "{tasks[i]['status']}"')
-                        print(f'  Created Since: "{tasks[i]['createdAt']}"')
-                        print(f'  Updated Since: "{tasks[i]['updatedAt']}"\n')
+            t = tasks.getTasks()
+            if len(args) == 2 and args[1] in taskmgr.TASK_STATUS:
+                t = {k:v for k,v in t.items() if v['status'] == args[1]}
+            
+            if not(t):
+                print("No task is in the list!")
+                return 0
+
+            for k,v in t.items():
+                print(f'ID: "{k}"')
+                print(f'  Description: "{v['description']}"')
+                print(f'  Status: "{v['status']}"')
+                print(f'  Created Since: "{v['createdAt']}"')
+                print(f'  Updated Since: "{v['updatedAt']}"\n')
+            
+            return 0
+
 
         elif args[0] == 'mark-in-progress':
-            try:
-                tasks[args[1]]['status'] = status_list[1]
-                writeTask(tasks, jsontask)
-            except KeyError:
-                print(reason_code(id, 102))
-                return 1
+            x = int(not(tmgr.markTaskInProgress(args[1])))
+            rc = (reason_code(args[1], 103 if x else 105), x)
+
 
         elif args[0] == 'mark-done':
-            try:
-                tasks[args[1]]['status'] = status_list[2]
-                writeTask(tasks, jsontask)
-            except KeyError:
-                print(reason_code(id, 102))
-                return 1
+            x = int(not(tmgr.markTaskDone(args[1])))
+            rc = (reason_code(args[1], 103 if x else 104), x)
+
+
         elif args[0] == 'help':
             printHelp()
-    else:
-        print(reason_code(args[0], 103))
+            return 0
 
-    return 0
+    else:
+        rc = (reason_code(args[0], 103), 1)
+
+    if not(tmgr.finalize()):
+        raise RuntimeError
+
+    print(rc[0])
+
+    return int(rc[1])
 
 if __name__ == "__main__":
     sys.exit(main())
